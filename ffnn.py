@@ -20,7 +20,7 @@ class FFNN(nn.Module):
         super(FFNN, self).__init__()
         self.h = h
         self.W1 = nn.Linear(input_dim, h)
-        self.activation = nn.ReLU() # The rectified linear unit; one valid choice of activation function
+        self.activation = nn.ELU() # The rectified linear unit; one valid choice of activation function
         self.output_dim = 5
         self.W2 = nn.Linear(h, self.output_dim)
 

@@ -33,16 +33,16 @@ class FFNN(nn.Module):
 
     def forward(self, input_vector):
 
-        # [to fill] obtain first hidden layer representation
+        # Apply linear transformation to input and activation
         hidden_layer = self.activation(self.W1(input_vector))
 
-        # Apply dropout to the hidden layer
+        # Apply dropout to the hidden layer to prevent overfitting
         hidden_layer = self.dropout(hidden_layer)
 
-        # [to fill] obtain output layer representation
+        # Apply linear transformation to the hidden layer for output layer representation
         output_layer = self.W2(hidden_layer)
         
-        # [to fill] obtain probability dist.
+        # Softmax is applied to the output layer for probability distribution over output classes
         predicted_vector = self.softmax(output_layer)
 
         return predicted_vector

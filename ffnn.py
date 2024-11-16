@@ -21,7 +21,7 @@ class FFNN(nn.Module):
         self.h = h
         self.W1 = nn.Linear(input_dim, h)
         self.activation = nn.ELU() # The rectified linear unit; one valid choice of activation function
-        self.dropout = nn.Dropout(p=0.5)  # Dropout layer with a probability of 0.5
+        self.dropout = nn.Dropout(p=0.6)  # Dropout layer with a probability of 0.6
         self.output_dim = 5
         self.W2 = nn.Linear(h, self.output_dim)
 
@@ -121,16 +121,25 @@ if __name__ == "__main__":
     # load data
     print("========== Loading data ==========")
     train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
+
+    # Print number of examples
+    print(f"Number of training examples: {len(train_data)}")
+    print(f"Number of validation examples: {len(valid_data)}")
+    
     vocab = make_vocab(train_data)
     vocab, word2index, index2word = make_indices(vocab)
 
     print("========== Vectorizing data ==========")
     train_data = convert_to_vector_representation(train_data, word2index)
     valid_data = convert_to_vector_representation(valid_data, word2index)
-    
 
+    # set up for early stop logic
+    patience = 3
+    best_validation_accuracy = 0
+    epochs_without_improvement = 0
+    
     model = FFNN(input_dim = len(vocab), h = args.hidden_dim)
-    optimizer = optim.SGD(model.parameters(),lr=0.01, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(),lr=0.0001, momentum=0.9)
     print("========== Training for {} epochs ==========".format(args.epochs))
     for epoch in range(args.epochs):
         model.train()
@@ -187,9 +196,22 @@ if __name__ == "__main__":
                 else:
                     loss += example_loss
             loss = loss / minibatch_size
+        validation_accuracy = correct / total
         print("Validation completed for epoch {}".format(epoch + 1))
         print("Validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
         print("Validation time for this epoch: {}".format(time.time() - start_time))
+
+        # early stop after three consecutive epochs of overfitting
+        if validation_accuracy > best_validation_accuracy:
+            best_validation_accuracy = validation_accuracy
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
+        if epochs_without_improvement >= patience:
+            print("Early stopping triggered")
+            print("Best validation accuracy is:", best_validation_accuracy)
+            break
 
     # write out to results/test.out
     

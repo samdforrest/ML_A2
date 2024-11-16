@@ -21,7 +21,8 @@ class RNN(nn.Module):
         super(RNN, self).__init__()
         self.h = h
         self.numOfLayer = 1
-        self.rnn = nn.RNN(input_dim, h, self.numOfLayer, nonlinearity='tanh')
+        self.rnn = nn.RNN(input_dim, h, self.numOfLayer, nonlinearity='relu')
+        self.dropout = nn.Dropout(0.6)
         self.W = nn.Linear(h, 5)
         self.softmax = nn.LogSoftmax(dim=1)
         self.loss = nn.NLLLoss()
@@ -30,15 +31,22 @@ class RNN(nn.Module):
         return self.loss(predicted_vector, gold_label)
 
     def forward(self, inputs):
-        # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
-        _, hidden = 
-        # [to fill] obtain output layer representations
+        # Pass input through the RNN layer to get output for each time step
+        output, _ = self.rnn(inputs) # output shape: (seq_len, batch_size, hidden_dim)
 
-        # [to fill] sum over output 
+        # Apply dropout for regularization
+        output = self.dropout(output)
 
-        # [to fill] obtain probability dist.
+        # Sum over the output (hidden states of each time step) along the sequence length dimension
+        summed_output = torch.sum(output, dim=0)
 
-        return predicted_vector
+        # Pass the summed output through the linear layer to get class scores
+        output_scores = self.W(summed_output)
+
+        # Convert the output scores to probabilities using softmax
+        predicted_vector = self.softmax(output_scores)
+
+        return predicted_vector 
 
 
 def load_data(train_data, val_data):
@@ -79,16 +87,21 @@ if __name__ == "__main__":
     print("========== Vectorizing data ==========")
     model = RNN(50, args.hidden_dim)  # Fill in parameters
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     word_embedding = pickle.load(open('./word_embedding.pkl', 'rb'))
 
     stopping_condition = False
     epoch = 0
+    target_epochs = args.epochs
+
+    patience = 3 # We only allow for 3 consecutive epochs to overfit before triggering early stopping
+    best_validation_accuracy = 0
+    epochs_without_improvement = 0
 
     last_train_accuracy = 0
     last_validation_accuracy = 0
 
-    while not stopping_condition:
+    while not stopping_condition and target_epochs > epoch:
         random.shuffle(train_data)
         model.train()
         # You will need further code to operationalize training, ffnn.py may be helpful
@@ -113,7 +126,6 @@ if __name__ == "__main__":
 
                 # Look up word embedding dictionary
                 vectors = [word_embedding[i.lower()] if i.lower() in word_embedding.keys() else word_embedding['unk'] for i in input_words ]
-
                 # Transform the input into required shape
                 vectors = torch.tensor(vectors).view(len(vectors), 1, -1)
                 output = model(vectors)
@@ -166,13 +178,17 @@ if __name__ == "__main__":
         print("Validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
         validation_accuracy = correct/total
 
-        if validation_accuracy < last_validation_accuracy and trainning_accuracy > last_train_accuracy:
-            stopping_condition=True
-            print("Training done to avoid overfitting!")
-            print("Best validation accuracy is:", last_validation_accuracy)
+        # Early stop logic after 3 consecutive epochs that are overfitting
+        if validation_accuracy > best_validation_accuracy:
+            best_validation_accuracy = validation_accuracy
+            epochs_without_improvement = 0
         else:
-            last_validation_accuracy = validation_accuracy
-            last_train_accuracy = trainning_accuracy
+            epochs_without_improvement += 1
+
+        if epochs_without_improvement >= patience:
+            stopping_condition = True
+            print("Early stopping triggered")
+            print("Best validation accuracy is:", best_validation_accuracy)
 
         epoch += 1
 
